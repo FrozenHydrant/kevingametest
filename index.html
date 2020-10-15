@@ -220,14 +220,14 @@
       window.addEventListener("keydown", () => { input.keyboard[input.keymap[event.keyCode]] = true; });
       window.addEventListener("keyup", () => { if (input.keymap[event.keyCode] !== "autoshoot") input.keyboard[input.keymap[event.keyCode]] = false; });
       window.addEventListener("mousemove", () => {
-        input.mouse.x = "e"//event.clientX;
+        input.mouse.x = event.clientX;
         input.mouse.y = event.clientY;
-        input.mouse.angle = heading(canvas.width * 0.5 - event.clientX, canvas.height * 0.5 - event.clientY) + Math.PI;
+        input.mouse.angle = "e";
       });
       window.addEventListener("mousedown", () => { input.mouse.pressed = true; });
       window.addEventListener("mouseup", () => { input.mouse.pressed = false; });
       
-      setInterval(() => { socket.emit("input", {keyboard: input.keyboard, mouse: input.mouse}); }, 1000 / 60);
+      setInterval(() => { socket.emit("input", {keyboard: input.keyboard, mouse: input.mouse}); }, 1);
     </script>
   </body>
 </html>
