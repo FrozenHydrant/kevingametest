@@ -1,0 +1,233 @@
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>no</title>
+    <meta charset="utf-8" />
+    <style>
+      canvas {
+        position: absolute;
+        left: 0px;
+        top: 0px;
+        background: rgb(0, 0, 0);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas">Your browser does not support html5 canvas :(</canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.4/socket.io.js"></script>
+    <script>
+      const socket = io("https://kevgame2.glitch.me/");
+      socket.on("connect", () => socket.emit("join"));
+      
+      let canvas = document.getElementById("canvas");
+      let ctx = canvas.getContext("2d");
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      
+      let input = {
+        keymap: {
+          87: "up",
+          83: "down",
+          65: "left",
+          68: "right",
+          70: "autoshoot"
+        },
+        keyboard: {
+          up: false,
+          down: false,
+          left: false,
+          right: false,
+          autoshoot: false
+        },
+        mouse: {
+          click: false,
+          pressed: false,
+          angle: 0,
+          x: 0,
+          y: 0
+        }
+      };
+      
+      function heading(x, y) {
+        return x === 0 ? 0 : x >= 0 ? Math.atan(y / x) : y >= 0 ? Math.atan(y / x) + Math.PI : Math.atan(y / x) - Math.PI;
+      }
+      
+      socket.on("state", (sim) => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "rgb(10, 10, 10)";
+        let user = {x: 0, y: 0};
+        if (sim.players[socket.id]) user = sim.players[socket.id];
+        ctx.setTransform(1, 0, 0, 1, -user.x + canvas.width * 0.5, -user.y + canvas.height * 0.5);
+        for (let x = -canvas.width * 0.5; x < canvas.width * 0.5 + 50; x += 50) {
+          ctx.fillRect(x + Math.round(user.x / 50) * 50, user.y - canvas.height * 0.5, 5, canvas.height);
+        }
+        for (let y = -canvas.height * 0.5; y < canvas.height * 0.5 + 50; y += 50) {
+          ctx.fillRect(user.x - canvas.width * 0.5, y + Math.round(user.y / 50) * 50, canvas.width, 5);
+        }
+        
+        for (let i = 0; i < sim.bullets.length; i ++) {
+          let bullet = sim.bullets[i];
+          ctx.fillStyle = `rgba(255, 0, 0, ${bullet.life / bullet.lifemax * 10})`;
+          if (socket.id === bullet.id) ctx.fillStyle = `rgba(0, 255, 0, ${bullet.life / bullet.lifemax * 10})`;
+          if (bullet.team === "entity") ctx.fillStyle = `rgba(255, 255, 0, ${bullet.life / bullet.lifemax * 10})`;
+          ctx.beginPath();
+          ctx.arc(bullet.x, bullet.y, bullet.radius * (bullet.lifemax - bullet.life) / 10 < bullet.radius ? bullet.radius * (bullet.lifemax - bullet.life) / 10 : bullet.radius, 0, Math.PI * 2, true);
+          ctx.closePath();
+          ctx.fill();
+        }
+        for (let i = 0; i < sim.lasers.length; i ++) {
+          let laser = sim.lasers[i];
+          let fill = `rgba(255, 0, 0, ${laser.life * 0.05})`;
+          ctx.strokeStyle = fill;
+          ctx.lineWidth = laser.width;
+          ctx.beginPath();
+          ctx.moveTo(laser.x, laser.y)
+          ctx.lineTo(laser.x2, laser.y2);
+          ctx.stroke();
+          ctx.fillStyle = fill;
+          ctx.beginPath();
+          ctx.arc(laser.x, laser.y, laser.width * 0.5, 0, Math.PI * 2, true);
+          ctx.arc(laser.x2, laser.y2, laser.width * 0.5, 0, Math.PI * 2, true);
+          ctx.closePath();
+          ctx.fill();
+          /*laser.width /= 2;
+          ctx.strokeStyle = `rgba(255, 50, 50, ${(laser.maxlifetime - laser.lifetime) / laser.maxlifetime})`;
+          ctx.lineWidth = laser.width;
+          ctx.beginPath();
+          ctx.moveTo(laser.x, laser.y)
+          ctx.lineTo(laser.x2, laser.y2);
+          ctx.stroke();
+          ctx.fillStyle = `rgba(255, 50, 50, ${(laser.maxlifetime - laser.lifetime) / laser.maxlifetime})`;
+          ctx.beginPath();
+          ctx.arc(laser.x, laser.y, laser.width * 0.5, 0, Math.PI * 2, true);
+          ctx.arc(laser.x2, laser.y2, laser.width * 0.5, 0, Math.PI * 2, true);
+          ctx.closePath();
+          ctx.fill();*/
+        }
+        for (let i = 0; i < sim.entities.length; i ++) {
+          let entity = sim.entities[i];
+          let fill = entity.dead ? `rgba(255, 255, 0, ${(20 - entity.deathAnimation) / 20})` : "rgb(255, 255, 0)";
+          ctx.strokeStyle = fill;
+          ctx.fillStyle = fill;
+          switch(entity.type) {
+            case "turret":
+              ctx.lineWidth = 10;
+              ctx.beginPath();
+              ctx.arc(entity.x, entity.y, entity.radius - 5, 0, Math.PI * 2, true);
+              ctx.closePath();
+              ctx.stroke();
+              ctx.translate(entity.x - entity.radius * 0.5 + entity.radius * 0.5, entity.y - entity.radius * 0.5 + entity.radius * 0.5);
+              ctx.rotate(entity.rotation);
+              ctx.fillRect(-60, -25, 130, 50);
+              ctx.fillStyle = "rgb(0, 0, 0)";
+              ctx.fillRect(-50, -15, 121, 30);
+              ctx.fillStyle = fill;
+              ctx.fillRect(-40, -5, 121, 10);
+              ctx.rotate(-entity.rotation);
+              ctx.translate(-(entity.x - entity.radius * 0.5 + entity.radius * 0.5), -(entity.y - entity.radius * 0.5 + entity.radius * 0.5));
+            break;
+            case "drone":
+              ctx.lineWidth = 5;
+              ctx.beginPath();
+              ctx.arc(entity.x, entity.y, entity.radius - 5, 0, Math.PI * 2, true);
+              ctx.closePath();
+              ctx.stroke();
+              ctx.translate(entity.x - entity.radius * 0.5 + entity.radius * 0.5, entity.y - entity.radius * 0.5 + entity.radius * 0.5);
+              ctx.rotate(entity.rotation);
+              ctx.fillRect(0, -2.5, 15, 5);
+              ctx.rotate(-entity.rotation);
+              ctx.translate(-(entity.x - entity.radius * 0.5 + entity.radius * 0.5), -(entity.y - entity.radius * 0.5 + entity.radius * 0.5));
+            break;
+            case "bomber":
+              ctx.lineWidth = 10;
+              ctx.beginPath();
+              ctx.arc(entity.x, entity.y, entity.radius - 5, 0, Math.PI * 2, true);
+              ctx.closePath();
+              ctx.stroke();
+              ctx.translate(entity.x - entity.radius * 0.5 + entity.radius * 0.5, entity.y - entity.radius * 0.5 + entity.radius * 0.5);
+              ctx.rotate(entity.rotationloc);
+              ctx.beginPath();
+              ctx.moveTo(Math.cos(0) * entity.radius, Math.sin(0) * entity.radius);
+              ctx.lineTo(Math.cos(Math.PI * 2 / 3) * entity.radius, Math.sin(Math.PI * 2 / 3) * entity.radius);
+              ctx.lineTo(Math.cos(Math.PI * 4 / 3) * entity.radius, Math.sin(Math.PI * 4 / 3) * entity.radius);
+              ctx.closePath();
+              ctx.stroke();
+              ctx.rotate(-entity.rotationloc + entity.rotation);
+              ctx.fillRect(0, 5, 50, 10);
+              ctx.fillRect(0, -15, 50, 10);
+              ctx.fillRect(-10, -15, 10, 30);
+              ctx.fillStyle = "rgb(0, 0, 0)";
+              ctx.fillRect(0, -5, 50, 10);
+              ctx.rotate(-entity.rotation)
+              ctx.translate(-(entity.x - entity.radius * 0.5 + entity.radius * 0.5), -(entity.y - entity.radius * 0.5 + entity.radius * 0.5));
+            break;
+          }
+          if (entity.dead) {
+            ctx.strokeStyle = `rgba(255, 0, 0, ${(20 - entity.deathAnimation) / 20})`;
+            ctx.beginPath();
+            ctx.arc(entity.x, entity.y, entity.radius - 5 + entity.deathAnimation * entity.radius * 0.1, 0, Math.PI * 2, true);
+            ctx.closePath();
+            ctx.stroke();
+          }
+          if (entity.health < entity.maxhealth) {
+            ctx.fillStyle = "rgb(200, 200, 200)";
+            ctx.fillRect(entity.x - entity.radius, entity.y - entity.radius - 10, entity.radius * 2, 7);
+            ctx.fillStyle = `rgb(${255 - 255 * entity.health / entity.maxhealth}, ${255 * entity.health / entity.maxhealth}, 0)`;
+            if (entity.health > 0) ctx.fillRect(entity.x - entity.radius, entity.y - entity.radius - 10, (entity.health / entity.maxhealth) * entity.radius * 2, 7);
+          }
+        }
+        for (let id in sim.players) {
+          let player = sim.players[id];
+          let fill = player.dead ? `rgba(255, 0, 0, ${(20 - player.deathAnimation) / 20})` : "rgb(255, 0, 0)";
+          ctx.strokeStyle = fill;
+          ctx.fillStyle = fill;
+          if (socket.id === id) {
+            fill = player.dead ? `rgba(255, 0, 0, ${(20 - player.deathAnimation) / 20})` : "rgb(0, 255, 0)";
+            ctx.strokeStyle = fill;
+            ctx.fillStyle = fill;
+          }
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.arc(player.x, player.y, player.radius - 2.5, 0, Math.PI * 2, true);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.translate(player.x - player.radius * 0.5 + player.radius * 0.5, player.y - player.radius * 0.5 + player.radius * 0.5);
+          ctx.rotate(player.rotation);
+          ctx.fillRect(20, -5, 10, 10);
+          ctx.rotate(-player.rotation);
+          ctx.translate(-(player.x - player.radius * 0.5 + player.radius * 0.5), -(player.y - player.radius * 0.5 + player.radius * 0.5));
+          if (player.health < player.maxhealth) {
+            ctx.fillStyle = player.dead ? `rgba(200, 200, 200, ${(20 - player.deathAnimation) / 20})` : "rgb(200, 200, 200)";
+            ctx.fillRect(player.x - player.radius, player.y - player.radius - 10, player.radius * 2, 7);
+            ctx.fillStyle = `rgb(${255 - 255 * player.health / player.maxhealth}, ${255 * player.health / player.maxhealth}, 0)`;
+            if (player.health > 0) ctx.fillRect(player.x - player.radius, player.y - player.radius - 10, (player.health / player.maxhealth) * player.radius * 2, 7);
+          }
+          if (player.dead) {
+            ctx.strokeStyle = `rgba(255, 0, 0, ${(20 - player.deathAnimation) / 20})`;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius - 5 + player.deathAnimation * player.radius * 0.1, 0, Math.PI * 2, true);
+            ctx.closePath();
+            ctx.stroke();
+          }
+        }
+      });
+      
+      window.addEventListener("keydown", () => { input.keyboard[input.keymap[event.keyCode]] = true; });
+      window.addEventListener("keyup", () => { if (input.keymap[event.keyCode] !== "autoshoot") input.keyboard[input.keymap[event.keyCode]] = false; });
+      window.addEventListener("mousemove", () => {
+        input.mouse.x = event.clientX;
+        input.mouse.y = event.clientY;
+        input.mouse.angle = heading(canvas.width * 0.5 - event.clientX, canvas.height * 0.5 - event.clientY) + Math.PI;
+      });
+      window.addEventListener("mousedown", () => { input.mouse.pressed = true; });
+      window.addEventListener("mouseup", () => { input.mouse.pressed = false; });
+      
+      setInterval(() => { socket.emit("input", {keyboard: input.keyboard, mouse: input.mouse}); }, 1000 / 60);
+    </script>
+  </body>
+</html>
